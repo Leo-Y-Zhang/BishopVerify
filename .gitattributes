@@ -1,0 +1,5 @@
+# OEIS b-files MUST be LF-only with no BOM. A Windows checkout would otherwise
+# convert them to CRLF, which violates the spec and makes verify.py fail on a
+# fresh clone. Force LF for the staged data.
+data/*.txt text eol=lf
+verify.py  text eol=lf
