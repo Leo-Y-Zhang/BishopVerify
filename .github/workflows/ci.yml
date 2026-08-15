@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # The offline checks only. They depend on nothing outside this repository, so
+  # a red run here means a claim in it is wrong, never that a third party is
+  # having a bad day. The checks against oeis.org live in oeis.yml.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: The b-files must survive the checkout as LF
+        run: |
+          if grep -qU $'\r' data/*.txt; then
+            echo "a b-file arrived with CRLF; .gitattributes is not holding"
+            exit 1
+          fi
+          echo "all five b-files are LF-only after checkout"
+      - run: python verify.py
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install ruff==0.16.1
+      - run: ruff check .
+
+  # The gitleaks binary directly rather than gitleaks-action, and the whole
+  # history rather than a diff. The action scans only the range
+  # <before>^..<after> that a push touched, so a secret committed earlier and
+  # never edited again is never looked at; and on a repository's first push the
+  # parent of the root commit does not exist, so it fails outright.
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - run: gitleaks detect --source . --redact --exit-code 1 --log-opts=--all

@@ -1,0 +1,7 @@
+# The script is written to be read straight through by someone checking the
+# claims, so a few lines run past the default 88 characters where breaking them
+# would hide what is being compared.
+line-length = 100
+
+[lint]
+select = ["E", "I", "UP", "B", "RUF"]

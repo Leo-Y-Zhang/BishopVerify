@@ -1,0 +1,24 @@
+name: Against the live OEIS
+
+# Deliberately not on push. This job talks to oeis.org, which intermittently
+# returns a Cloudflare 525 that says nothing about the commit being pushed. It
+# runs weekly instead, so that a genuine change to the published record -- a
+# correction, a withdrawal, somebody else extending a sequence -- is noticed
+# within a week, and can be run by hand whenever the answer is wanted now.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      # --require-online, not --online: here an unreachable OEIS means the check
+      # did not happen, and a run that checked nothing must not report success.
+      - run: python verify.py --require-online
