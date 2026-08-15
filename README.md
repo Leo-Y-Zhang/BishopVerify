@@ -7,11 +7,16 @@ This repository exists so the paper's claims can be checked **without trusting
 the program that produced them**, and without access to that program.
 
 ```sh
-python verify.py --online
+python verify.py            # structural checks, no network
+python verify.py --online   # also check against the live OEIS record
 ```
 
 No dependencies beyond the Python standard library. The run takes a few seconds
 and prints PASS or FAIL for every check, exiting non-zero if any fails.
+
+An unreachable oeis.org is reported as a skip rather than a failure, since an
+outage there says nothing about these files — pass `--require-online` when you
+need the absence of an answer to count as one.
 
 ## What it checks
 
@@ -34,16 +39,23 @@ implementation, so they are evidence independent of the code:
 **Monotonicity.** Every sequence is strictly increasing. A count that shrank as
 the board grew would be an error, not a discovery.
 
-**Novelty, against the live record.** With `--online`, the script fetches the
-currently published b-file for each sequence directly from oeis.org and confirms
-three things: that the published reach is what the paper says it is, that the
-staged file contributes exactly two new terms beyond it, and that **every**
-overlapping term agrees with the published value. At the time of writing that is
-41 overlapping terms across the five sequences, all matching.
+**Against the live record.** With `--online`, the script fetches the currently
+published b-file for each sequence directly from oeis.org and separates two
+questions that are easy to run together and mean very different things:
 
-That last check is the important one. Agreement on 41 previously published
-values, computed independently, is far stronger evidence for the method than any
-statement made about it in the paper.
+- **Do these files agree with terms computed by other people?** Every term that
+  predates this work — 41 of them across the five sequences, contributed by Eric
+  W. Weisstein and Andrew Howroyd — must match. This is the evidence.
+- **Did the ten new terms land, unaltered?** Each must now be present in the live
+  b-file and equal to what was submitted.
+
+The first check is the important one. Agreement on 41 independently published
+values is far stronger evidence for the method than any statement made about it
+in the paper. Agreement on our own ten says only that we can copy, which is why
+they are counted separately rather than folded into one total.
+
+The published reach is reported, never asserted. If somebody extends one of these
+sequences further, that is not a failure of this repository.
 
 ## What it does not do
 
@@ -58,6 +70,9 @@ method is described in full in the paper precisely so that someone can attempt
 one.
 
 ## The ten new values
+
+All ten were approved by the OEIS on 13 August 2026 and are now the published
+record. `--online` confirms that on every run.
 
 | Sequence | New terms | Counts |
 | --- | --- | --- |

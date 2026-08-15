@@ -2,11 +2,11 @@
 
 This checks the published claims WITHOUT trusting the program that produced
 them. It uses only the Python standard library, and it fetches the currently
-published OEIS b-files so the "these terms are new" claim is checked against
-the live record rather than against a copy.
+published OEIS b-files so the agreement is checked against the live record
+rather than against a copy.
 
     python verify.py            # offline structural checks only
-    python verify.py --online   # also fetch OEIS and confirm the terms are new
+    python verify.py --online   # also check against the live OEIS record
 
 Every check prints PASS or FAIL and the script exits non-zero if any fails.
 """
@@ -29,8 +29,12 @@ SEQS = {
     "A289169": ("white", "connected dominating sets"),
 }
 
-# what the OEIS held before this work, measured from the published b-files
-PUBLISHED_REACH = {
+# What the OEIS held BEFORE this work, measured from the published b-files at the
+# time. All ten new terms were approved on 13 August 2026, so the live b-files now
+# reach further than this. The numbers are kept because they are what separates
+# the terms this work contributed from the terms it was checked against: agreement
+# on somebody else's 41 values is evidence, agreement on our own 10 is not.
+REACH_BEFORE_THIS_WORK = {
     "A290719": 9, "A290769": 9, "A291595": 9,
     "A289145": 8, "A289169": 8,
 }
@@ -78,8 +82,13 @@ def fetch_published(seq: str) -> dict[int, int]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--online", action="store_true",
-                    help="fetch the live OEIS b-files and check the terms are still new")
+                    help="fetch the live OEIS b-files and check them against these")
+    ap.add_argument("--require-online", action="store_true",
+                    help="with --online, treat an unreachable OEIS as a failure "
+                         "rather than a skip")
     args = ap.parse_args()
+    if args.require_online:
+        args.online = True
 
     staged = {s: read_bfile(DATA / f"b{s[1:]}.txt") for s in SEQS}
 
@@ -122,30 +131,69 @@ def main() -> int:
         ok = all(staged[s][ns[i]] < staged[s][ns[i + 1]] for i in range(len(ns) - 1))
         check(f"{s}: strictly increasing", ok)
 
+    skipped: list[str] = []
     if args.online:
-        print("\n4. NOVELTY  (fetched live from oeis.org)\n")
+        print("\n4. THE PUBLISHED RECORD  (fetched live from oeis.org)\n")
+        independent = 0
+        contributed = 0
         for s in SEQS:
             try:
                 pub = fetch_published(s)
-            except Exception as e:                      # network, not a claim failure
+            except (OSError, ValueError) as e:
+                # An OEIS outage is not a failure of these claims. Anything else
+                # is a fault in this script, and must not be disguised as one:
+                # a bare "except Exception" here once let a NameError print
+                # ALL CHECKS PASSED while checking nothing.
                 print(f"  [SKIP] {s}: could not reach OEIS ({e})")
+                skipped.append(s)
                 continue
-            pub_max = max(pub) if pub else -1
-            check(f"{s}: published reach is n = {PUBLISHED_REACH[s]} as stated",
-                  pub_max == PUBLISHED_REACH[s], f"live b-file reaches n = {pub_max}")
-            new = [n for n in staged[s] if n > pub_max]
-            check(f"{s}: contributes {len(new)} new term(s)", len(new) == 2, f"n = {new}")
-            agree = [n for n in staged[s] if n in pub and staged[s][n] == pub[n]]
-            disagree = [n for n in staged[s] if n in pub and staged[s][n] != pub[n]]
-            check(f"{s}: agrees with every published term", not disagree,
-                  f"{len(agree)} overlapping terms match")
+
+            # Agreement on terms that predate this work is the evidence. Those
+            # were computed by other people, so matching them says the method is
+            # right. Agreement on our own terms says only that we can copy.
+            before = REACH_BEFORE_THIS_WORK[s]
+            prior = [n for n in staged[s] if n in pub and n <= before]
+            prior_bad = [n for n in prior if staged[s][n] != pub[n]]
+            check(f"{s}: agrees with every term that predates this work",
+                  not prior_bad, f"{len(prior)} independently published terms match")
+            independent += len(prior)
+
+            # The ten new terms were approved on 13 Aug 2026, so each must now be
+            # in the live b-file, and must equal what was submitted.
+            ours = [n for n in staged[s] if n > before]
+            missing = [n for n in ours if n not in pub]
+            altered = [n for n in ours if n in pub and staged[s][n] != pub[n]]
+            check(f"{s}: the terms this work contributed are published",
+                  not missing, f"n = {ours}" + (f", missing {missing}" if missing else ""))
+            check(f"{s}: the published values match what was submitted", not altered,
+                  "unchanged since approval" if not altered else f"differ at {altered}")
+            contributed += len(ours) - len(missing)
+
+            # Reported, never asserted: somebody else extending the sequence
+            # further is not a failure of this repository.
+            print(f"         live b-file reaches n = {max(pub) if pub else '-'}")
+
+        if independent or contributed:
+            print(f"\n  {independent} terms reproduced independently, "
+                  f"{contributed} contributed terms confirmed published")
+        if skipped:
+            print(f"  NOT CHECKED against oeis.org: {', '.join(skipped)}")
+            if args.require_online:
+                failures.append(f"could not reach OEIS for {', '.join(skipped)}")
     else:
-        print("\n4. NOVELTY  skipped. Re-run with --online to check against oeis.org\n")
+        print("\n4. THE PUBLISHED RECORD  skipped. Re-run with --online to check "
+              "against oeis.org\n")
 
     print()
     if failures:
         print(f"FAILED: {len(failures)} check(s) -> {', '.join(failures)}")
         return 1
+    # The verdict has to carry the caveat. A log read from the bottom must not
+    # show an unqualified pass for a run that never reached the OEIS.
+    if skipped:
+        print(f"ALL CHECKS PASSED, but {len(skipped)} sequence(s) were never "
+              f"checked against oeis.org")
+        return 0
     print("ALL CHECKS PASSED")
     return 0
 
