@@ -152,10 +152,20 @@ def main() -> int:
             # were computed by other people, so matching them says the method is
             # right. Agreement on our own terms says only that we can copy.
             before = REACH_BEFORE_THIS_WORK[s]
-            prior = [n for n in staged[s] if n in pub and n <= before]
+            # Every one of these was in the published b-file when it was measured,
+            # so an absent one is not a term that agrees. Comparing only the ones
+            # that happen to still be there would let this check pass having
+            # compared nothing at all, which is the same false verdict as an
+            # unnoticed exception, reached by a different route.
+            expected = [n for n in staged[s] if n <= before]
+            prior = [n for n in expected if n in pub]
+            prior_gone = [n for n in expected if n not in pub]
             prior_bad = [n for n in prior if staged[s][n] != pub[n]]
             check(f"{s}: agrees with every term that predates this work",
-                  not prior_bad, f"{len(prior)} independently published terms match")
+                  not prior_bad and not prior_gone,
+                  f"{len(prior)} of {len(expected)} independently published terms match"
+                  + (f", {len(prior_gone)} no longer in the live b-file: {prior_gone}"
+                     if prior_gone else ""))
             independent += len(prior)
 
             # The ten new terms were approved on 13 Aug 2026, so each must now be
