@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
 
+# Least privilege: these jobs only ever read the checkout. Declared
+# explicitly so the workflow keeps its own floor even if the repository
+# default token permission is widened later.
+permissions:
+  contents: read
+
 jobs:
   # The offline checks only. They depend on nothing outside this repository, so
   # a red run here means a claim in it is wrong, never that a third party is

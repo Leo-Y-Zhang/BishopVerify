@@ -10,6 +10,12 @@ on:
     - cron: "17 6 * * 1"
   workflow_dispatch:
 
+# Least privilege: these jobs only ever read the checkout. Declared
+# explicitly so the workflow keeps its own floor even if the repository
+# default token permission is widened later.
+permissions:
+  contents: read
+
 jobs:
   live:
     runs-on: ubuntu-latest
