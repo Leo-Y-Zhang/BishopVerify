@@ -39,6 +39,15 @@ implementation, so they are evidence independent of the code:
 **Monotonicity.** Every sequence is strictly increasing. A count that shrank as
 the board grew would be an error, not a discovery.
 
+**Independent recomputation.** Every check above is a comparison between
+committed files, so a fabricated-but-internally-consistent set of numbers
+would satisfy all of them. `a(6)` of A290719 is instead recomputed from
+scratch — brute force over every connected induced subgraph of the 6x6
+black-square bishop graph — and compared against the committed value. See
+`test_tamper.py` for a demonstration: it changes three committed values
+together in a way that keeps every self-consistency check above satisfied,
+and confirms only this recomputation catches it.
+
 **Against the live record.** With `--online`, the script fetches the currently
 published b-file for each sequence directly from oeis.org and separates two
 questions that are easy to run together and mean very different things:

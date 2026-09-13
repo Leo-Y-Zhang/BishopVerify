@@ -33,6 +33,7 @@ jobs:
           fi
           echo "all five b-files are LF-only after checkout"
       - run: python verify.py
+      - run: python test_tamper.py
 
   lint:
     runs-on: ubuntu-latest

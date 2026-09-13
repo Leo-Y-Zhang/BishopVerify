@@ -41,6 +41,65 @@ REACH_BEFORE_THIS_WORK = {
 
 failures: list[str] = []
 
+# The one term recomputed from first principles rather than trusted from
+# data/. n = 6 is the cheapest board size that is not trivially small (18
+# vertices, so 2**18 candidate subsets) while still finishing in a fraction
+# of a second.
+RECOMPUTE_SEQ = "A290719"
+RECOMPUTE_N = 6
+
+
+def color_squares(n: int, parity: int) -> list[tuple[int, int]]:
+    """The squares of one colour on an n x n board, 0-indexed.
+
+    Matches the convention the b-files were measured under: (0, 0) is black,
+    and two squares share a colour iff (row + col) has the same parity.
+    """
+    return [(r, c) for r in range(n) for c in range(n) if (r + c) % 2 == parity]
+
+
+def bishop_adjacency(squares: list[tuple[int, int]]) -> list[int]:
+    """adj[i] is a bitmask of the squares a bishop on squares[i] attacks.
+
+    Two squares share a diagonal -- and so attack each other, at any range,
+    since nothing here models blocking pieces -- iff their coordinates have
+    equal sum or equal difference.
+    """
+    k = len(squares)
+    adj = [0] * k
+    for i, (ri, ci) in enumerate(squares):
+        for j, (rj, cj) in enumerate(squares):
+            if i != j and (ri + ci == rj + cj or ri - ci == rj - cj):
+                adj[i] |= 1 << j
+    return adj
+
+
+def count_connected_induced_subgraphs(adj: list[int]) -> int:
+    """How many non-empty vertex subsets induce a connected subgraph.
+
+    Brute force over every subset: no shortcut that could share a bug with
+    whatever produced the committed values. Fine up to a few tens of
+    vertices; A290719(6) has 18.
+    """
+    k = len(adj)
+    total = 0
+    for mask in range(1, 1 << k):
+        start = (mask & -mask).bit_length() - 1
+        seen = frontier = 1 << start
+        while frontier:
+            nxt = 0
+            f = frontier
+            while f:
+                v = (f & -f).bit_length() - 1
+                f &= f - 1
+                nxt |= adj[v] & mask
+            nxt &= ~seen
+            seen |= nxt
+            frontier = nxt
+        if seen == mask:
+            total += 1
+    return total
+
 
 def check(name: str, ok: bool, detail: str = "") -> None:
     print(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f"  {detail}" if detail else ""))
@@ -131,9 +190,19 @@ def main() -> int:
         ok = all(staged[s][ns[i]] < staged[s][ns[i + 1]] for i in range(len(ns) - 1))
         check(f"{s}: strictly increasing", ok)
 
+    print("\n4. INDEPENDENT RECOMPUTATION  (first principles, nothing in data/ trusted)\n")
+    recomputed = count_connected_induced_subgraphs(
+        bishop_adjacency(color_squares(RECOMPUTE_N, 0))
+    )
+    committed = staged[RECOMPUTE_SEQ][RECOMPUTE_N]
+    check(f"{RECOMPUTE_SEQ}: a({RECOMPUTE_N}) recomputed from the bishop graph itself",
+          recomputed == committed,
+          f"brute force over the {RECOMPUTE_N}x{RECOMPUTE_N} black-square bishop graph "
+          f"gives {recomputed}, data/ says {committed}")
+
     skipped: list[str] = []
     if args.online:
-        print("\n4. THE PUBLISHED RECORD  (fetched live from oeis.org)\n")
+        print("\n5. THE PUBLISHED RECORD  (fetched live from oeis.org)\n")
         independent = 0
         contributed = 0
         for s in SEQS:
@@ -191,7 +260,7 @@ def main() -> int:
             if args.require_online:
                 failures.append(f"could not reach OEIS for {', '.join(skipped)}")
     else:
-        print("\n4. THE PUBLISHED RECORD  skipped. Re-run with --online to check "
+        print("\n5. THE PUBLISHED RECORD  skipped. Re-run with --online to check "
               "against oeis.org\n")
 
     print()
