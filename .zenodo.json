@@ -1,6 +1,6 @@
 {
  "upload_type": "software",
- "title": "BishopVerify: independent verification of the b-files for the bishop-arrangement sequences",
+ "title": "BishopVerify: verification of the b-files for the bishop-arrangement sequences",
  "description": "A dependency-free verification program for the b-files behind ten new values of the bishop-arrangement sequences OEIS A289145, A289169, A290719, A290769 and A291595: connected induced subgraphs and connected dominating sets of the bishop graph on an n X n board. It checks b-file format conformance, the structural identities the problem forces (black plus white equals the whole board, black equals white at even n), strict monotonicity, and agreement with the live OEIS record, and includes an independent recomputation from board coordinates and a tamper test that must make the gate fail.",
  "creators": [
   {
