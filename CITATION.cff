@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, or cite the values it establishes, please cite the archived version below."
+title: "BishopVerify: independent verification of the b-files for the bishop-arrangement sequences"
+abstract: >-
+  A dependency-free verification program for the b-files behind ten new values of
+  the bishop-arrangement sequences OEIS A289145, A289169, A290719, A290769 and
+  A291595. It checks b-file format conformance, the structural identities the
+  problem forces, strict monotonicity, and agreement with the live OEIS record,
+  and includes an independent recomputation and a tamper test that must make the
+  gate fail.
+type: software
+authors:
+  - family-names: Zhang
+    given-names: Leo Y.
+    orcid: "https://orcid.org/0009-0008-1145-7969"
+repository-code: "https://github.com/Leo-Y-Zhang/BishopVerify"
+license-url: "https://github.com/Leo-Y-Zhang/BishopVerify/blob/main/LICENSE"
+# Fill these three in from the Zenodo record created by the first release, then
+# commit. Until they are set this file says who wrote the software and where it
+# lives, which is true, but gives nobody a citable, permanent address -- and the
+# permanent address is the entire reason the OEIS link points at Zenodo and not
+# at a GitHub URL that one rename would break.
+# version: "1.0.0"
+# date-released: "2026-09-21"
+# doi: 10.5281/zenodo.XXXXXXXX
+# url: "https://doi.org/10.5281/zenodo.XXXXXXXX"
+keywords:
+  - bishop graph
+  - connected induced subgraph
+  - connected dominating set
+  - b-file
+  - verification
+  - OEIS
