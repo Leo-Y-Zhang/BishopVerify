@@ -59,6 +59,9 @@ CORRUPTIONS = [
     ("a b-file cut off part-way through its last line", [
         ("b289169.txt", "10 1073633875253120\n", "10 10736"),
     ]),
+    ("the final newline of a b-file removed", [
+        ("b289145.txt", "10 1073633875253120\n", "10 1073633875253120"),
+    ]),
     ("a line repeated at the end of a b-file", [
         ("b289145.txt", None, "5 4528\n"),
     ]),
