@@ -14,6 +14,7 @@ Every check prints PASS or FAIL and the script exits non-zero if any fails.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -39,14 +40,26 @@ REACH_BEFORE_THIS_WORK = {
     "A289145": 8, "A289169": 8,
 }
 
+# The indices each staged b-file must hold: the OEIS offset up to the last term
+# this work contributed. Every other check compares only the terms that are
+# present, so without this a line deleted from a b-file would withdraw a claim
+# (or one of the 41 terms it is checked against) and still pass.
+CLAIMED_INDICES = {
+    "A290719": (1, 11), "A290769": (2, 11), "A291595": (1, 11),
+    "A289145": (1, 10), "A289169": (2, 10),
+}
+
 failures: list[str] = []
 
-# The one term recomputed from first principles rather than trusted from
-# data/. n = 6 is the cheapest board size that is not trivially small (18
-# vertices, so 2**18 candidate subsets) while still finishing in a fraction
-# of a second.
-RECOMPUTE_SEQ = "A290719"
-RECOMPUTE_N = 6
+# Every term with n <= this is recomputed from first principles rather than
+# trusted from data/, in all five sequences. n = 6 is the largest board where
+# brute force still finishes in about a second (18 vertices per colour, so
+# 2**18 candidate subsets); n = 7 would be 2**25.
+RECOMPUTE_MAX_N = 6
+
+# One line of a b-file: an index and a value, each in plain decimal. int()
+# alone would also accept "+5", "1_000" and surrounding whitespace.
+BFILE_LINE = re.compile(r"(0|-?[1-9][0-9]*) (0|-?[1-9][0-9]*)")
 
 
 def color_squares(n: int, parity: int) -> list[tuple[int, int]]:
@@ -74,15 +87,19 @@ def bishop_adjacency(squares: list[tuple[int, int]]) -> list[int]:
     return adj
 
 
-def count_connected_induced_subgraphs(adj: list[int]) -> int:
-    """How many non-empty vertex subsets induce a connected subgraph.
+def count_connected_subsets(adj: list[int]) -> tuple[int, int]:
+    """(connected induced subgraphs, connected dominating sets) of a graph.
 
-    Brute force over every subset: no shortcut that could share a bug with
-    whatever produced the committed values. Fine up to a few tens of
-    vertices; A290719(6) has 18.
+    Both count non-empty vertex subsets that induce a connected subgraph; the
+    second counts only those that also dominate, i.e. every vertex is in the
+    subset or adjacent to one in it. Brute force over every subset: no
+    shortcut that could share a bug with whatever produced the committed
+    values. Fine up to about twenty vertices; the 6x6 board has 18 per colour.
     """
     k = len(adj)
-    total = 0
+    everything = (1 << k) - 1
+    closed = [adj[v] | (1 << v) for v in range(k)]
+    connected = dominating = 0
     for mask in range(1, 1 << k):
         start = (mask & -mask).bit_length() - 1
         seen = frontier = 1 << start
@@ -97,8 +114,16 @@ def count_connected_induced_subgraphs(adj: list[int]) -> int:
             seen |= nxt
             frontier = nxt
         if seen == mask:
-            total += 1
-    return total
+            connected += 1
+            covered = 0
+            m = mask
+            while m:
+                v = (m & -m).bit_length() - 1
+                m &= m - 1
+                covered |= closed[v]
+            if covered == everything:
+                dominating += 1
+    return connected, dominating
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
@@ -156,9 +181,18 @@ def main() -> int:
         raw = (DATA / f"b{s[1:]}.txt").read_bytes()
         check(f"{s}: no carriage returns", b"\r" not in raw)
         check(f"{s}: no byte-order mark", not raw.startswith(b"\xef\xbb\xbf"))
+        lines = [ln for ln in raw.decode("utf-8").split("\n")[:-1]
+                 if not ln.startswith("#")] if raw.endswith(b"\n") else None
+        well_formed = lines is not None and all(BFILE_LINE.fullmatch(ln) for ln in lines)
+        check(f"{s}: every line is 'n value' in plain decimal, ending in a newline",
+              well_formed)
+        order = [int(ln.split()[0]) for ln in lines] if well_formed else []
+        check(f"{s}: indices strictly increasing, no repeats",
+              well_formed and order == sorted(set(order)))
+        lo, hi = CLAIMED_INDICES[s]
         ns = sorted(staged[s])
-        check(f"{s}: indices contiguous", ns == list(range(ns[0], ns[-1] + 1)),
-              f"n = {ns[0]}..{ns[-1]}")
+        check(f"{s}: holds exactly the claimed terms", ns == list(range(lo, hi + 1)),
+              f"n = {ns[0]}..{ns[-1]}, claimed {lo}..{hi}" if ns else "no terms")
         check(f"{s}: all values positive", all(v > 0 for v in staged[s].values()))
 
     print("\n2. STRUCTURAL IDENTITIES  (these follow from the problem, not the code)\n")
@@ -191,14 +225,22 @@ def main() -> int:
         check(f"{s}: strictly increasing", ok)
 
     print("\n4. INDEPENDENT RECOMPUTATION  (first principles, nothing in data/ trusted)\n")
-    recomputed = count_connected_induced_subgraphs(
-        bishop_adjacency(color_squares(RECOMPUTE_N, 0))
-    )
-    committed = staged[RECOMPUTE_SEQ][RECOMPUTE_N]
-    check(f"{RECOMPUTE_SEQ}: a({RECOMPUTE_N}) recomputed from the bishop graph itself",
-          recomputed == committed,
-          f"brute force over the {RECOMPUTE_N}x{RECOMPUTE_N} black-square bishop graph "
-          f"gives {recomputed}, data/ says {committed}")
+    # colour -> n -> (connected, dominating), by brute force on the board itself
+    brute = {colour: {n: count_connected_subsets(bishop_adjacency(color_squares(n, parity)))
+                      for n in range(1, RECOMPUTE_MAX_N + 1)}
+             for colour, parity in (("black", 0), ("white", 1))}
+    for s, (colour, what) in SEQS.items():
+        which = 1 if what == "connected dominating sets" else 0
+        ns = [n for n in range(1, RECOMPUTE_MAX_N + 1) if n in staged[s]]
+        wrong = []
+        for n in ns:
+            colours = ("black", "white") if colour == "both" else (colour,)
+            recomputed = sum(brute[c][n][which] for c in colours)
+            if recomputed != staged[s][n]:
+                wrong.append(f"a({n}) is {recomputed}, data/ says {staged[s][n]}")
+        check(f"{s}: every term up to n = {RECOMPUTE_MAX_N} recomputed from the bishop graph",
+              bool(ns) and not wrong,
+              "; ".join(wrong) if wrong else f"n = {ns[0]}..{ns[-1]}" if ns else "no terms")
 
     skipped: list[str] = []
     if args.online:

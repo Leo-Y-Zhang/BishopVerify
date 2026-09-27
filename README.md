@@ -21,8 +21,11 @@ need the absence of an answer to count as one.
 ## What it checks
 
 **File format.** The five staged b-files are LF-only with no byte-order mark,
-carry contiguous indices, and hold only positive values — the conditions the
-OEIS requires of a submitted b-file.
+hold one `n value` pair per line in plain decimal with strictly increasing
+indices, and hold only positive values — the conditions the OEIS requires of a
+submitted b-file. Each must also hold exactly the claimed range of terms, from
+the sequence's offset to its last new term, so a deleted line cannot quietly
+withdraw a claim or one of the terms it is checked against.
 
 **Structural identities.** These follow from the problem rather than from any
 implementation, so they are evidence independent of the code:
@@ -41,12 +44,12 @@ the board grew would be an error, not a discovery.
 
 **Independent recomputation.** Every check above is a comparison between
 committed files, so a fabricated-but-internally-consistent set of numbers
-would satisfy all of them. `a(6)` of A290719 is instead recomputed from
-scratch — brute force over every connected induced subgraph of the 6x6
-black-square bishop graph — and compared against the committed value. See
-`test_tamper.py` for a demonstration: it changes three committed values
-together in a way that keeps every self-consistency check above satisfied,
-and confirms only this recomputation catches it.
+would satisfy all of them. Every term with n ≤ 6 — 28 of the 51, in all five
+sequences — is instead recomputed from scratch, by brute force over every
+vertex subset of the black- and white-square bishop graphs on the n x n board,
+and compared against the committed value. See `test_tamper.py` for a
+demonstration: it changes committed values in ways that keep every
+self-consistency check above satisfied, and confirms the gate still fails.
 
 **Against the live record.** With `--online`, the script fetches the currently
 published b-file for each sequence directly from oeis.org and separates two
